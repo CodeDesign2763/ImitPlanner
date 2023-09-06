@@ -2,7 +2,7 @@
 
 ![GPL V3 Logo](./Descr/GPLv3_Logo.png)
 
-**ImitPlanner** is an open-source cross-platform library that is intended for planning working time when performing a large number of tasks of approximately the same complexity (E. g., when preparing for exams on your own). It works on the principle of simulation.
+**ImitPlanner** is an open-source cross-platform library under GPLv3 license that is intended for planning working time when performing a large number of tasks of approximately the same complexity (E. g., when preparing for exams on your own). It works on the principle of simulation.
 
 ## Dataflow diagram
 
