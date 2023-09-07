@@ -161,9 +161,13 @@ class FixedTimeTask(AbstractEdSource):
 		return "Fixed Time Task"
 	def getDescr(self):
 		return "("+self.getSourceName()+") " + self.__title
+
+class SubjectSolveExReturnCode(enum.Enum):
+	OK=0
+	LOCKED=1
 	
 class Subject(IDescriptable, IEventSource, IEventListener):
-	def __init__(self, name):
+	def __init__(self, name, startAfter=None):
 		IEventSource.__init__(self)
 		self.__edSourceList=[]
 		# index of the current ed. source (book) in the list
@@ -172,6 +176,10 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 		self.__fComplete=False
 		
 		self.__name=name
+		self.__prevSubj=startAfter
+	
+	def getPrevSubject(self):
+		return self.__prevSubj
 	
 	def addEdSource(self, book):
 		# Add an element to the end of the list
@@ -197,8 +205,18 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 				raise Exception("Error! This subject has already"
 						+ " been completed!")
 	def solveEx(self, nExSolved):
-		self.__edSourceList[self.__curEdSourceIndex].solveEx(nExSolved)
-		
+		if (self.__prevSubj != None):
+			if (self.__prevSubj.isFinished()):
+				self.__edSourceList[self.__curEdSourceIndex].solveEx(
+						nExSolved)
+				return SubjectSolveExReturnCode.OK
+			else:
+				return SubjectSolveExReturnCode.LOCKED
+		else:
+			self.__edSourceList[self.__curEdSourceIndex].solveEx(
+						nExSolved)
+			return SubjectSolveExReturnCode.OK
+			
 	def getNExTotal(self):
 		sum=0
 		for book in self.__edSourceList:
@@ -474,6 +492,15 @@ class ImitPlanner(IEventSource, IEventListener):
 			self.fireEvent(Event("KeyDate", 
 					KeyDate(self.__getCurDate(), DateType.SUBJECT,
 							True, event.getPayload() )))
+			
+			# If the start of the study of any subject is related 
+			# to the end of the study of this, 
+			# create a message with the date of its start (issue #1)
+			for subject in self.__subjectList:
+				if subject.getPrevSubject()==event.getPayload():
+					self.fireEvent(Event("KeyDate", 
+						KeyDate(self.__getCurDate(), DateType.SUBJECT,
+							False, subject )))
 	
 	def genTimeIntDescrRecords(self):
 		self.__inputValidation()
