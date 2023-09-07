@@ -360,6 +360,13 @@ class ImitPlanner(IEventSource, IEventListener):
 		fFirstValue=True
 		nTrainingModes=0
 		for subject in self.__subjectList:
+			
+			# Check for the presence of all subjects OBJECT ID
+			# in trainingModes (issue #4)
+			if subject not in self.__trainingModes:
+				raise Exception("Error! All subjects must" 
+						+ " be in trainingModes as keys")
+			
 			if fFirstValue==True:
 				nTrainingModes=len(self.__trainingModes[subject])
 			else:
