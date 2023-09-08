@@ -55,8 +55,19 @@ class AbstractEdSource(IEventSource, IDescriptable):
 		self.__unitName=unitName
 		self.__nExTotal=nExTotal
 		
+		# Has the source been used at least once? (issue #5)
+		self.__fUse=False
+		
 	def getNExTotal(self):
 		return self.__nExTotal
+	
+	# To send a message when the source is used for the first time
+	# issue #5
+	def use(self, nExSolve=None, verbose=False):
+		if self.__fUse==False and verbose==True:
+			self.__fUse=True
+			self.fireEvent(Event("Source started!", self))
+		self.solveEx(nExSolve)
 		
 	def solveEx(self, nExSolve):
 		raise Exception("Interface method not implemented")
@@ -84,12 +95,13 @@ class AbstractProblemBook(AbstractEdSource):
 
 		self.__title=title
 	
+	
 	# methods for returning private fields
 	def getAuthor(self):
 		return self.__author
 	def getTitle(self):
 		return self.__title
-	
+
 	# abstract method
 	def getSourceName(self):
 		raise Exception("Interface method not implemented")
@@ -177,6 +189,9 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 		
 		self.__name=name
 		self.__prevSubj=startAfter
+		
+		# Has the subject been used at least once? (issue #5)
+		self.__fUse=False
 	
 	def getPrevSubject(self):
 		return self.__prevSubj
@@ -193,7 +208,7 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 				
 				# Duplicate event in planner
 				self.fireEvent(Event(event.getMessage(), 
-						(self,event.getPayload())))
+						SubjectAndEdSource(self,event.getPayload())))
 				
 				if self.__curEdSourceIndex<=len(self.__edSourceList):
 					self.__curEdSourceIndex+=1
@@ -204,17 +219,33 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 			else:
 				raise Exception("Error! This subject has already"
 						+ " been completed!")
-	def solveEx(self, nExSolved):
+		
+		if event.getMessage()=="Source started!": #issue #5
+			# Duplicate event in planner
+				self.fireEvent(Event(event.getMessage(), 
+						SubjectAndEdSource(self,event.getPayload())))
+	# issue #5
+	def __checkFirstUse(self, verbose):
+		if self.__fUse==False and verbose==True:
+			self.__fUse=True
+			self.fireEvent(Event("Subject started!", self))
+							
+	
+	def solveEx(self, nExSolved, verbose=False):
+
+			
 		if (self.__prevSubj != None):
 			if (self.__prevSubj.isFinished()):
-				self.__edSourceList[self.__curEdSourceIndex].solveEx(
-						nExSolved)
+				self.__checkFirstUse(verbose) # issue #5
+				self.__edSourceList[self.__curEdSourceIndex].use(
+						nExSolved, verbose)
 				return SubjectSolveExReturnCode.OK
 			else:
 				return SubjectSolveExReturnCode.LOCKED
 		else:
-			self.__edSourceList[self.__curEdSourceIndex].solveEx(
-						nExSolved)
+			self.__checkFirstUse(verbose) # issue #5
+			self.__edSourceList[self.__curEdSourceIndex].use(
+						nExSolved, verbose)
 			return SubjectSolveExReturnCode.OK
 			
 	def getNExTotal(self):
@@ -258,13 +289,8 @@ class KeyDate(object):
 	# the contents of an object to a string
 	def __str__(self):
 		s="("+self.__dateType.name+") "
-		if self.__dateType!=DateType.ED_SOURCE:
-			s+=self.__payload.getDescr()
-		else:
-			s+= ("("+self.__payload[0].getDescr()+") "
-					+ self.__payload[1].getDescr())
-			
-		
+		s+=self.__payload.getDescr()
+
 		# start/end
 		if self.__fEnd!=None:
 			s+=" ("
@@ -276,6 +302,21 @@ class KeyDate(object):
 		
 		s+= ": "+ self.__date.isoformat()
 		return s
+
+class SubjectAndEdSource(IDescriptable):
+	def __init__(self, subj, edSource):
+		self.__subj=subj
+		self.__edSource=edSource
+	
+	def getSubject(self):
+		return self.__subj
+	def getEdSource(self):
+		return self.__edSource
+	
+	def getDescr(self):
+		return "("+self.__subj.getDescr() + ") " \
+				+ self.__edSource.getDescr()
+				
 
 class Milestone(IDescriptable):
 	def __init__(self, date, descr):
@@ -403,7 +444,7 @@ class ImitPlanner(IEventSource, IEventListener):
 		
 	# The function generates key dates by simulation. 
 	# Returns true if there is enough time to study all subjects.
-	def genKeyDates(self):
+	def genKeyDates(self, verbose=False):
 		
 		self.__inputValidation()
 		
@@ -461,7 +502,8 @@ class ImitPlanner(IEventSource, IEventListener):
 					# in favor of other subjects.
 					if subject.isFinished()==False:
 						subject.solveEx(
-						self.__trainingModes[subject][msCounter-1][0])
+						self.__trainingModes[subject][msCounter-1][0],
+								verbose)
 					
 			if nSharedSubjects>0:
 				# Calculation of resource reallocation for items with 
@@ -471,7 +513,8 @@ class ImitPlanner(IEventSource, IEventListener):
 				for subject in self.__subjectList:
 					if self.__trainingModes[subject][msCounter-1][1]==0:
 							if subject.isFinished()==False:
-								subject.solveEx(performancePerSubject)
+								subject.solveEx(performancePerSubject,
+										verbose)
 			
 			# Cycle step
 			self.__incCurDate()
@@ -492,15 +535,14 @@ class ImitPlanner(IEventSource, IEventListener):
 			self.fireEvent(Event("KeyDate", 
 					KeyDate(self.__getCurDate(), DateType.SUBJECT,
 							True, event.getPayload() )))
-			
-			# If the start of the study of any subject is related 
-			# to the end of the study of this, 
-			# create a message with the date of its start (issue #1)
-			for subject in self.__subjectList:
-				if subject.getPrevSubject()==event.getPayload():
-					self.fireEvent(Event("KeyDate", 
-						KeyDate(self.__getCurDate(), DateType.SUBJECT,
-							False, subject )))
+		elif event.getMessage()=="Source started!": #issue 5
+			self.fireEvent(Event("KeyDate", 
+					KeyDate(self.__getCurDate(), DateType.ED_SOURCE,
+							False, event.getPayload() )))
+		elif event.getMessage()=="Subject started!":
+			self.fireEvent(Event("KeyDate", 
+					KeyDate(self.__getCurDate(), DateType.SUBJECT,
+						False, event.getPayload() )))
 	
 	def genTimeIntDescrRecords(self):
 		self.__inputValidation()
