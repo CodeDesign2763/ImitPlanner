@@ -192,6 +192,15 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 		
 		# Has the subject been used at least once? (issue #5)
 		self.__fUse=False
+		
+		# reopened issue #1
+		if startAfter!=None:
+			self.__fLocked=True
+		else:
+			self.__fLocked=False
+	
+	def isLocked(self):
+		return self.__fLocked
 	
 	def getPrevSubject(self):
 		return self.__prevSubj
@@ -236,6 +245,7 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 			
 		if (self.__prevSubj != None):
 			if (self.__prevSubj.isFinished()):
+				self.__fLocked=False # issue #1 reopened
 				self.__checkFirstUse(verbose) # issue #5
 				self.__edSourceList[self.__curEdSourceIndex].use(
 						nExSolved, verbose)
@@ -485,11 +495,13 @@ class ImitPlanner(IEventSource, IEventListener):
 			# Total available performance (number of problems)
 			sharedPerformance=0
 			
+			# BOGUS !!!
 			# Calculation of nSharedSubjects and sharedPerfomance
 			for subject in self.__subjectList:
 				# if at a given time interval the subject is studied 
 				# as part of a group of subjects with x
-				if self.__trainingModes[subject][msCounter-1][1]==0:
+				if self.__trainingModes[subject][msCounter-1][1]==0 \
+					and subject.isLocked()==False:
 					sharedPerformance += (
 						self.__trainingModes[subject][msCounter-1][0])
 					# if its study is already completed
