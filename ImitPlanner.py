@@ -67,7 +67,7 @@ class AbstractEdSource(IEventSource, IDescriptable):
 		if self.__fUse==False and verbose==True:
 			self.__fUse=True
 			self.fireEvent(Event("Source started!", self))
-		self.solveEx(nExSolve)
+		return self.solveEx(nExSolve)
 		
 	def solveEx(self, nExSolve):
 		raise Exception("Interface method not implemented")
@@ -113,11 +113,14 @@ class AbstractProblemBook(AbstractEdSource):
 				# Установить MACH_EPS???
 				
 				if self.__exCounter+nExSolved>=self.getNExTotal():
+					rem = self.__exCounter+nExSolved-self.getNExTotal()
 					self.__fComplete = True
 					self.__exCounter = self.getNExTotal()
 					self.fireEvent(Event("Source completed!", self))
+					return rem
 				else:
 					self.__exCounter+=nExSolved
+					return 0
 			else:
 				# input validation
 				raise Exception("Error! The number of solved examples"
@@ -166,9 +169,10 @@ class FixedTimeTask(AbstractEdSource):
 			if self.__daysCounter==self.__nDays:
 				self.__fComplete=True
 				self.fireEvent(Event("Source completed!", self))
+			return 0
 		else:
 			raise Exception("Error! This ed. source has already been"
-				" completed!")
+				+ " completed!")
 	def getSourceName(self):
 		return "Fixed Time Task"
 	def getDescr(self):
@@ -238,7 +242,16 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 		if self.__fUse==False and verbose==True:
 			self.__fUse=True
 			self.fireEvent(Event("Subject started!", self))
-							
+	
+	# To comply with the DRY principle
+	def __subjProcessing(self, nExSolved, verbose):
+		self.__checkFirstUse(verbose) # issue #5
+		rem=self.__edSourceList[self.__curEdSourceIndex].use(
+						nExSolved, verbose)
+		if rem>0: # issue #6
+			if self.isFinished()==False:
+				self.__edSourceList[self.__curEdSourceIndex].use(
+						rem, verbose)
 	
 	def solveEx(self, nExSolved, verbose=False):
 
@@ -246,16 +259,12 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 		if (self.__prevSubj != None):
 			if (self.__prevSubj.isFinished()):
 				self.__fLocked=False # issue #1 reopened
-				self.__checkFirstUse(verbose) # issue #5
-				self.__edSourceList[self.__curEdSourceIndex].use(
-						nExSolved, verbose)
+				self.__subjProcessing(nExSolved, verbose) #issue 6
 				return SubjectSolveExReturnCode.OK
 			else:
 				return SubjectSolveExReturnCode.LOCKED
 		else:
-			self.__checkFirstUse(verbose) # issue #5
-			self.__edSourceList[self.__curEdSourceIndex].use(
-						nExSolved, verbose)
+			self.__subjProcessing(nExSolved,verbose)
 			return SubjectSolveExReturnCode.OK
 			
 	def getNExTotal(self):
@@ -495,7 +504,6 @@ class ImitPlanner(IEventSource, IEventListener):
 			# Total available performance (number of problems)
 			sharedPerformance=0
 			
-			# BOGUS !!!
 			# Calculation of nSharedSubjects and sharedPerfomance
 			for subject in self.__subjectList:
 				# if at a given time interval the subject is studied 
