@@ -205,6 +205,17 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 	
 	def isLocked(self):
 		return self.__fLocked
+
+	# issue #7 
+	def unlock(self):
+		if (self.__prevSubj != None):
+			if (self.__prevSubj.isFinished()):
+				self.__fLocked=False
+				return 0
+			else:
+				return 1
+		else:
+			return 1
 	
 	def getPrevSubject(self):
 		return self.__prevSubj
@@ -244,28 +255,30 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 			self.fireEvent(Event("Subject started!", self))
 	
 	# To comply with the DRY principle
-	def __subjProcessing(self, nExSolved, verbose):
-		self.__checkFirstUse(verbose) # issue #5
-		rem=self.__edSourceList[self.__curEdSourceIndex].use(
-						nExSolved, verbose)
-		if rem>0: # issue #6
-			if self.isFinished()==False:
-				self.__edSourceList[self.__curEdSourceIndex].use(
-						rem, verbose)
+	# def __subjProcessing(self, nExSolved, verbose):
+		# self.__checkFirstUse(verbose) # issue #5
+		# rem=self.__edSourceList[self.__curEdSourceIndex].use(
+						# nExSolved, verbose)
+		# if rem>0: # issue #6
+			# if self.isFinished()==False:
+				# self.__edSourceList[self.__curEdSourceIndex].use(
+						# rem, verbose)
 	
 	def solveEx(self, nExSolved, verbose=False):
 
+		if self.__fLocked==False:
+			self.__checkFirstUse(verbose) # issue #5
 			
-		if (self.__prevSubj != None):
-			if (self.__prevSubj.isFinished()):
-				self.__fLocked=False # issue #1 reopened
-				self.__subjProcessing(nExSolved, verbose) #issue 6
-				return SubjectSolveExReturnCode.OK
-			else:
-				return SubjectSolveExReturnCode.LOCKED
-		else:
-			self.__subjProcessing(nExSolved,verbose)
+			rem=self.__edSourceList[self.__curEdSourceIndex].use(
+						nExSolved, verbose)
+			if rem>0: # issue #6
+				if self.isFinished()==False:
+					self.__edSourceList[self.__curEdSourceIndex].use(
+						rem, verbose)
+						
 			return SubjectSolveExReturnCode.OK
+		else:
+			return SubjectSolveExReturnCode.LOCKED
 			
 	def getNExTotal(self):
 		sum=0
@@ -382,10 +395,20 @@ class ImitPlanner(IEventSource, IEventListener):
 		self.__subjectList=[]
 		self.__trainingModes=trainingModes
 		self.__milestoneList = []
+		self.__subjUnlockList = []
 
 	def addSubject(self, subject):
 		self.__subjectList.append(subject)
 		subject.addEventListener(self)
+	
+	# issue #7
+	def __addSubjToUnlockList(self, subject):
+		self.__subjUnlockList.append(subject)
+
+	# issue #7
+	def __unlockSubjFromUnlockList(self):
+		for subject in self.__subjUnlockList:
+			subject.unlock()
 		
 	def addMilestone(self, milestone):
 		self.__milestoneList.append(milestone)
@@ -489,6 +512,11 @@ class ImitPlanner(IEventSource, IEventListener):
 			if msCounter==len(self.__milestoneList):
 				break
 			
+			# Unlock subjects(issue #7)
+			# Unlock items for which the study of items 
+			# marked in option X was completed on the previous day
+			
+			self.__unlockSubjFromUnlockList()
 			
 			# Studying objects with shared ed. performance 
 			# (second value - 0). If the study of one of these subjects 
@@ -555,6 +583,12 @@ class ImitPlanner(IEventSource, IEventListener):
 			self.fireEvent(Event("KeyDate", 
 					KeyDate(self.__getCurDate(), DateType.SUBJECT,
 							True, event.getPayload() )))
+			# issue 7
+			for subject in self.__subjectList:
+				if subject.getPrevSubject()==event.getPayload():
+					self.__addSubjToUnlockList(subject)
+					
+					
 		elif event.getMessage()=="Source started!": #issue 5
 			self.fireEvent(Event("KeyDate", 
 					KeyDate(self.__getCurDate(), DateType.ED_SOURCE,
