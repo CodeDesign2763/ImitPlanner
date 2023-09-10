@@ -448,17 +448,6 @@ class ImitPlanner(IEventSource, IEventListener):
 		self.__subjectList.append(subject)
 		subject.addEventListener(self)
 	
-	# # issue #2
-	# def __getGID(self, subject, intervIndex):
-		# tm = self.__trainingModes
-		# if tm[subject][intervIndex][1]=1:
-			# return -1 # fixed training mode
-		# elif tm[subject][intervIndex][1]=0:
-			# if len(tm[subject][intervIndex])==3:
-				# return tm[subject][intervIndex][2]
-			# else return 0 # GID is zero, if not specified
-		
-	
 	# issue #7
 	def __addSubjToUnlockList(self, subject):
 		self.__subjUnlockList.append(subject)
@@ -685,9 +674,6 @@ class ImitPlanner(IEventSource, IEventListener):
 					self.__milestoneList[i+1])
 			for subject in self.__subjectList:
 				if self.__trainingModes.isShared(subject,i):
-					# Тут нужно внести изменения
-					# Определить GID
-					# Добавлять предмет не в список а в словарь со списками по GID
 					
 					GID = self.__trainingModes.getGID(subject, i)
 					interval.addSharedPerfSubjRecord(GID,
