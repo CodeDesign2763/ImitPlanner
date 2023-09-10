@@ -363,43 +363,101 @@ class TimeIntervalDescrRecord(object):
 	def __init__(self, subj, subjPerf):
 		self.__subjName=subj.getName()
 		self.__subjPerf=subjPerf
+		self.__prevSubjName=None
+		if subj.getPrevSubject()!=None:
+			self.__prevSubjName=subj.getPrevSubject().getDescr()
 	def getSubjName(self):
 		return self.__subjName
 	def getSubjPerf(self):
 		return self.__subjPerf
+	def getPrevSubjName(self):
+		return self.__prevSubjName
 		
 class TimeInterval(object):
 	def __init__(self, ms1, ms2):
 		self.__ms1=ms1
 		self.__ms2=ms2
-		self.__sharedPerfSubjRecords=[]
+		self.__sharedPerfSubjRecords={}
 		self.__fixedPerfSubjRecords=[]
 	def getStartDate(self):
 		return self.__ms1.getDate()
 	def getEndDate(self):
 		return self.__ms2.getDate()
-	def addSharedPerfSubjRecord(self, subjRecord):
-		self.__sharedPerfSubjRecords.append(subjRecord)
+	def addSharedPerfSubjRecord(self, GID, subjRecord):
+		d = self.__sharedPerfSubjRecords # alias
+		if GID not in d:
+			d[GID]=[]
+		d[GID].append(subjRecord)
 	def addFixedPerfSubjRecord(self, subjRecord):
 		self.__fixedPerfSubjRecords.append(subjRecord)
 	def getSharedPerfSubjRecords(self):
-		# protection from changes
-		return tuple(self.__sharedPerfSubjRecords)
+		return self.__sharedPerfSubjRecords
 	def getFixedPerfSubjRecords(self):
 		# protection from changes
 		return tuple(self.__fixedPerfSubjRecords)
+
+class TrainingModesSharedFlag(enum.Enum):
+	SharedMode=0
+	FixedMode=1
+
+# issue #2
+class TrainingModes(object):
+	def __init__ (self, trainingModes):
+		self.__tm=trainingModes
+	
+	def getGID(self,subj, intervalIndex):
+		if not self.isShared(subj, intervalIndex):
+			return -1
+		else:
+			if len(self.__tm[subj][intervalIndex])==3:
+				return self.__tm[subj][intervalIndex][2]
+			else: 
+				return 0 # GID is zero, if not specified
+	
+	def isShared(self,subj, intervalIndex):
+		if (self.__tm[subj][intervalIndex][1])==\
+				TrainingModesSharedFlag.SharedMode.value:
+			return True
+		else:
+			return False
+	
+	def getPerf(self,subj, intervalIndex):
+		return self.__tm[subj][intervalIndex][0]
+	
+	def getModes(self):
+		return self.__tm
+	
+	def getNModesPerSubject(self, subject):
+		return len(self.__tm[subject])
+	
+	def hasSubject(self, subject):
+		if subject in self.__tm:
+			return True
+		else:
+			return False
 
 class ImitPlanner(IEventSource, IEventListener):
 	def __init__(self, trainingModes):
 		IEventSource.__init__(self)
 		self.__subjectList=[]
-		self.__trainingModes=trainingModes
+		self.__trainingModes=TrainingModes(trainingModes)
 		self.__milestoneList = []
 		self.__subjUnlockList = []
 
 	def addSubject(self, subject):
 		self.__subjectList.append(subject)
 		subject.addEventListener(self)
+	
+	# # issue #2
+	# def __getGID(self, subject, intervIndex):
+		# tm = self.__trainingModes
+		# if tm[subject][intervIndex][1]=1:
+			# return -1 # fixed training mode
+		# elif tm[subject][intervIndex][1]=0:
+			# if len(tm[subject][intervIndex])==3:
+				# return tm[subject][intervIndex][2]
+			# else return 0 # GID is zero, if not specified
+		
 	
 	# issue #7
 	def __addSubjToUnlockList(self, subject):
@@ -464,14 +522,16 @@ class ImitPlanner(IEventSource, IEventListener):
 			
 			# Check for the presence of all subjects OBJECT ID
 			# in trainingModes (issue #4)
-			if subject not in self.__trainingModes:
+			if not self.__trainingModes.hasSubject(subject):
 				raise Exception("Error! All subjects must" 
 						+ " be in trainingModes as keys")
 			
 			if fFirstValue==True:
-				nTrainingModes=len(self.__trainingModes[subject])
+				nTrainingModes= \
+					self.__trainingModes.getNModesPerSubject(subject)
 			else:
-				if len(self.__trainingModes[subject])!=nTrainingModes:
+				if self.__trainingModes.getNModesPerSubject(subject)!= \
+						nTrainingModes:
 					raise Exception("Error! Each subject should have "
 						+ "the same number of training modes")
 		
@@ -483,6 +543,11 @@ class ImitPlanner(IEventSource, IEventListener):
 			raise Exception("Error! The number of training modes must "
 			+"be at least 1")
 		return 0
+	
+	def __add2Dict(self,dictionary, key, value):
+		if key not in dictionary:
+			dictionary[key]=0
+		dictionary[key]+= value
 		
 	# The function generates key dates by simulation. 
 	# Returns true if there is enough time to study all subjects.
@@ -490,14 +555,16 @@ class ImitPlanner(IEventSource, IEventListener):
 		
 		self.__inputValidation()
 		
+		# startDate & endDate calculation
 		startDate = self.__milestoneList[0].getDate()
 		endDate = (
 			self.__milestoneList[len(self.__milestoneList)-1].getDate())
-			
+		
+		# Current date & msCounter initialization	
 		self.__refreshCurDate()
 		msCounter=0
 		
-		if len(self.__trainingModes)==0:
+		if len(self.__trainingModes.getModes())==0:
 			raise Exception("Error! Training mode list is empty!")
 			
 		while self.__getCurDate()<=endDate:
@@ -525,24 +592,28 @@ class ImitPlanner(IEventSource, IEventListener):
 			# It is assumed that the complexity of the tasks 
 			# is approximately the same
 			
-			# The number of subjects with shared performance, the study 
-			# of which has not yet been completed
-			nSharedSubjects=0
+			# Number of subjects with shared performance per GID
+			nSharedSubjects={} # issue 2: dict instead of int
 			
-			# Total available performance (number of problems)
-			sharedPerformance=0
+			# Available performance per GID
+			sharedPerformance={} # issue 2: dict instead of int
 			
-			# Calculation of nSharedSubjects and sharedPerfomance
+			# Calculation of nSharedSubjects and sharedPerfomance values
 			for subject in self.__subjectList:
-				# if at a given time interval the subject is studied 
-				# as part of a group of subjects with x
-				if self.__trainingModes[subject][msCounter-1][1]==0 \
+				if self.__trainingModes.isShared(subject,
+						msCounter-1) \
 					and subject.isLocked()==False:
-					sharedPerformance += (
-						self.__trainingModes[subject][msCounter-1][0])
-					# if its study is already completed
+					
+					self.__add2Dict(sharedPerformance, 
+							self.__trainingModes.getGID(subject, 
+								msCounter-1), 
+							self.__trainingModes.getPerf(	
+								subject,msCounter-1))
+					
 					if subject.isFinished()==False:
-						nSharedSubjects+=1
+						self.__add2Dict(nSharedSubjects, 
+							self.__trainingModes.getGID(subject, 
+								msCounter-1), 1)
 				else:
 					# Processing subjects with a fixed performance
 					# When their study is completed, the released 
@@ -550,18 +621,27 @@ class ImitPlanner(IEventSource, IEventListener):
 					# in favor of other subjects.
 					if subject.isFinished()==False:
 						subject.solveEx(
-						self.__trainingModes[subject][msCounter-1][0],
+						self.__trainingModes.getPerf(subject,
+								msCounter-1),
 								verbose)
 					
-			if nSharedSubjects>0:
+			if len(nSharedSubjects)>0:
 				# Calculation of resource reallocation for items with 
 				# shared training performance
-				performancePerSubject = (
-						sharedPerformance/nSharedSubjects)
+				performancePerSubjPerGID={} #issue #2
+				for GID in nSharedSubjects:
+					
+					performancePerSubjPerGID[GID]= \
+						sharedPerformance[GID]/nSharedSubjects[GID]
+				
 				for subject in self.__subjectList:
-					if self.__trainingModes[subject][msCounter-1][1]==0:
-							if subject.isFinished()==False:
-								subject.solveEx(performancePerSubject,
+					if self.__trainingModes.isShared(subject, \
+						msCounter-1) and subject.isFinished()==False \
+						and subject.isLocked()==False:
+							GID = self.__trainingModes.getGID(subject, 
+									msCounter-1)
+							subject.solveEx(
+									performancePerSubjPerGID[GID],
 										verbose)
 			
 			# Cycle step
@@ -604,22 +684,31 @@ class ImitPlanner(IEventSource, IEventListener):
 			interval = TimeInterval(self.__milestoneList[i],
 					self.__milestoneList[i+1])
 			for subject in self.__subjectList:
-				if self.__trainingModes[subject][i][1]==0:
-					interval.addSharedPerfSubjRecord(
-							TimeIntervalDescrRecord(subject, 
-								self.__trainingModes[subject][i][0]))
+				if self.__trainingModes.isShared(subject,i):
+					# Тут нужно внести изменения
+					# Определить GID
+					# Добавлять предмет не в список а в словарь со списками по GID
+					
+					GID = self.__trainingModes.getGID(subject, i)
+					interval.addSharedPerfSubjRecord(GID,
+						TimeIntervalDescrRecord(subject, 
+							self.__trainingModes.getPerf(subject,i)))
 				else:
 					interval.addFixedPerfSubjRecord(
-								TimeIntervalDescrRecord(subject, 
-								self.__trainingModes[subject][i][0]))
+						TimeIntervalDescrRecord(subject, 
+							self.__trainingModes.getPerf(subject,i)))
 			self.fireEvent(Event("Interval Descr!",	interval))
 		
 class SimpleView(IEventListener):
 	
 	def __showSubjRecords(self, recordsTuple):
 		for record in recordsTuple:
+				s=""
+				if record.getPrevSubjName()!=None:
+					s+=" StartAfter="+record.getPrevSubjName()
 				print("\t",record.getSubjName(),": ", 
-						record.getSubjPerf()," elem. task/day")
+						record.getSubjPerf()," elem. task/day"
+						, s)
 		
 	def onEvent(self, event):
 		if event.getMessage()=="KeyDate":
@@ -629,7 +718,12 @@ class SimpleView(IEventListener):
 			print("***", interval.getStartDate(),
 					"-",interval.getEndDate(), "***")
 			print("Subjects with shared training performance:")
-			self.__showSubjRecords(interval.getSharedPerfSubjRecords())
+			
+			d = interval.getSharedPerfSubjRecords() # alias
+			for GID in d:
+				print("Group #",GID)
+				self.__showSubjRecords(d[GID])
+			
 			print("Subjects with fixed training performance:")
 			self.__showSubjRecords(interval.getFixedPerfSubjRecords())
 		elif event.getMessage()=="Promt":
