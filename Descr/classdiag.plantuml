@@ -1,0 +1,197 @@
+@startuml
+class Event {
+	-message:string
+	-payload:object
+	+__init__(message,payload)
+	+getMessage():string
+	+getPayload():object
+}
+
+class IEventSource {
+	-eventListeners:list
+	+__init__()
+	+addEventListener(listener):void
+	+fireEvent(event):void
+}
+
+interface IEventListener {
+	{abstract} +onEvent(event):void
+}
+
+interface IDescriptable {
+	{abstract} +getDescr():string
+}
+
+abstract class AbstractEdSource {
+	-unitName:string
+	-nExTotal:integer
+	__init__(unitName, nExTotal=1):
+	+getNexTotal():integer
+	{abstract} +solveEx(nExSolve): void
+	{abstract} +getSourceName():string
+	+getUnitName():string
+}
+
+abstract class AbstractProblemBook {
+	-author:string
+	-exCounter:float
+	-fComplete:boolean
+	-title:string
+	+__init__(title, nExTotal, author, unitName)
+	+getAuthor():string
+	+getTitle():string
+	{abstract} +getSourceName():string
+	+solveEx(nExSolved): void
+	+getExCounter():floar
+	+getDescr():string
+	
+}
+
+class Book {
+	+__init__(title, nExTotal, author, unitName)
+	+getSourceName():string
+}
+
+class YTVideo {
+	+__init__(title, nExTotal, author, unitName)
+	+getSourceName():string
+}
+
+class FixedTimeTask {
+	-title:string
+	-nDays:integer
+	-daysCounter:integer
+	-fComplete:boolean
+	+__init__(title, nDays):
+	+solveEx(p): void
+	+getSourceName(): string
+	+getDescr(): string
+}
+
+class Subject{
+	-edSourceList:List
+	-curEdSourceIndex:integer
+	-fComplete:boolean
+	-name:string
+	+__init__(name)
+	+addEdSource(book):void
+	+onEvent(event):void
+	+solveEx(nExSolved):void
+	+getNExTotal():integer
+	+isFinished():boolean
+	+getName():string
+	+getDescr():string
+	+getCurEdSource():AbstractEdSource
+}
+
+enum DateType {
+	ED_SOURCE
+	SUBJECT
+	MILESTONE
+}
+
+class KeyDate {
+	-date:datetime.date
+	-dateType:DateType
+	-fEnd:boolean
+	-payload:object
+	+__init__(date, dateType, fEnd, payload)
+	+getDate():datetime.date
+	+getDateType():DateType
+	+getPayload():object
+	+__str__():string
+}
+	
+class Milestone {
+	-date:datetime.date
+	-descr:string
+	+__init__(date, descr)
+	+getDate():datetime.date
+	+getDescr():
+		
+}
+
+class TimeIntervalDescrRecord {
+	-subjName:string
+	-subjPerf:float
+	+__init__(subj,subjPerf)
+	+getSubjName():string
+	+getSubjPerf():float
+}
+
+class TimeInterval {
+	-ms1:Milestone
+	-ms2:Milestone
+	-sharedPerfSubjRecords:List
+	-fixedPerfSubjRecords:List
+	+__init__(ms1, ms2):
+	+getStartDate():datetime.date
+	+getEndDate():datetime.date
+	+addSharedPerfSubjRecord(subjRecord):void
+	+addFixedPerfSubjRecord(subjRecord):void
+	+getSharedPerfSubjRecord(subjRecord):void
+	+getFixedPerfSubjRecord(subjRecord):void
+}
+
+
+class ImitPlanner {
+	-subjectList:List
+	-trainingModes:List
+	-milestoneList:List
+	+__init__(trainingModes)
+	+addSubject(subject):void
+	+addMilestone(milestone):void
+	-checkMilestoneListLength():integer
+	-checkSubjListLength():integer
+	-refreshCurDate():void
+	-incCurDate():void
+	-getCurDate():void
+	+getNDays():integer
+	+getNExTotal():integer
+	-inputValidation():integer
+	+genKeyDates():boolean
+	+onEvent(event):void
+	+genTimeIntDescrRecords():void
+}
+
+class SimpleView {
+	-showSubjRecords(recordsTuple):void
+	+onEvent(event):void
+}
+
+IEventSource ..> Event : <<send>>
+
+IEventListener ..> Event : <<derive>>
+
+AbstractEdSource ..|> IDescriptable
+AbstractEdSource ..|> IEventSource
+
+AbstractProblemBook --|> AbstractEdSource
+Book --|> AbstractProblemBook
+YTVideo --|> AbstractProblemBook	
+FixedTimeTask --|> AbstractEdSource
+
+Subject o-- AbstractEdSource
+Subject ..|> IEventListener
+Subject ..|> IEventSource
+Subject ..|> IDescriptable
+
+ImitPlanner o-- Subject
+ImitPlanner o-- Milestone
+
+TimeInterval o-- Milestone
+
+TimeInterval o-- TimeIntervalDescrRecord
+
+ImitPlanner ..> KeyDate : <<create>>
+
+KeyDate ..> DateType : <<derive>>
+
+SimpleView ..|> IEventListener
+
+SimpleView ..> TimeInterval : <<use>>
+
+SimpleView ..> KeyDate : <<use>>
+
+
+@enduml

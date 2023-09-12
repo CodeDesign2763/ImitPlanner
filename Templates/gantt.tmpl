@@ -1,0 +1,38 @@
+@startgantt
+
+title {{title}}
+
+projectscale {{scale}}
+
+project starts {{startdate}}
+
+{% for milestone in msList %}
+[ {{milestone.descr}} ] happens {{milestone.date}}
+{% endfor -%}
+
+{% for edSource in edSourceList %}
+[{{edSource.type}} {{edSource.ID}}] as [b{{edSource.ID}}] starts {{edSource.startDate}}
+[b{{edSource.ID}}] ends {{edSource.endDate}}
+[b{{edSource.ID}}] is colored in {{edSource.color}}
+{% endfor -%}
+note bottom
+Subjects: 
+{% for subj in subjList -%}
+{{subj.name}}: {{subj.color}}
+{% endfor %}
+Educational sources:
+{% for edSource in edSourceList -%}
+{{edSource.type}} {{edSource.ID}}: {{edSource.name}}
+{% endfor -%}
+
+{% block header1 %}
+Time intervals:
+{% endblock -%}
+{% for interval in intervalList -%}
+{{interval.startDate}} -- {{interval.endDate}}:
+{% for subject in interval.descr -%}
+{{subject.subjName}}: {{subject.subjPerf}}
+{% endfor %}
+{% endfor -%}
+end note
+@endgantt

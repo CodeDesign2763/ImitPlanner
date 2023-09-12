@@ -21,6 +21,8 @@ import datetime
 import math
 import enum
 
+from jinja2 import Template, Environment, FileSystemLoader
+
 class Event(object):
 	def __init__(self, message, payload=None):
 		self.__message=message
@@ -50,7 +52,7 @@ class IDescriptable(object): #informal interface
 		raise Exception("Interface method not implemented")
 
 class AbstractEdSource(IEventSource, IDescriptable):
-	def __init__(self, unitName=None, nExTotal=1):
+	def __init__(self, title, unitName=None, nExTotal=1):
 		IEventSource.__init__(self)
 		self.__unitName=unitName
 		self.__nExTotal=nExTotal
@@ -58,8 +60,13 @@ class AbstractEdSource(IEventSource, IDescriptable):
 		# Has the source been used at least once? (issue #5)
 		self.__fUse=False
 		
+		self.__title=title
+		
 	def getNExTotal(self):
 		return self.__nExTotal
+	
+	def getTitle(self):
+		return self.__title
 	
 	# To send a message when the source is used for the first time
 	# issue #5
@@ -85,7 +92,7 @@ class AbstractProblemBook(AbstractEdSource):
 	# The first parameter must be "self" in all methods
 	def __init__(self, title, nExTotal, author=None, unitName=None):
 		# Base class constructor call
-		AbstractEdSource.__init__(self, unitName, nExTotal)
+		AbstractEdSource.__init__(self, title, unitName, nExTotal)
 		# private fields
 		self.__author = author
 		# solved tasks counter
@@ -93,14 +100,9 @@ class AbstractProblemBook(AbstractEdSource):
 		# book completion flag
 		self.__fComplete = False
 
-		self.__title=title
-	
-	
 	# methods for returning private fields
 	def getAuthor(self):
 		return self.__author
-	def getTitle(self):
-		return self.__title
 
 	# abstract method
 	def getSourceName(self):
@@ -136,7 +138,7 @@ class AbstractProblemBook(AbstractEdSource):
 		output="("+self.getSourceName()+") " 
 		if self.__author!=None:
 			output+=self.__author + ", "
-		output+=self.__title
+		output+=self.getTitle()
 		return output
 		
 
@@ -158,8 +160,7 @@ class YTVideo(AbstractProblemBook):
 # regardless of the value of productivity in the subject
 class FixedTimeTask(AbstractEdSource):
 	def __init__(self, title, nDays):
-		AbstractEdSource.__init__(self)
-		self.__title=title
+		AbstractEdSource.__init__(self, title)
 		self.__nDays=nDays
 		self.__daysCounter=0
 		self.__fComplete= False
@@ -313,9 +314,11 @@ class KeyDate(object):
 	def getDate(self):
 		return self.__date
 	def getDateType(self):
-		return dateType
+		return self.__dateType
 	def getPayload(self):
-		return getPayload
+		return self.__payload
+	def getFEnd(self):
+		return self.__fEnd
 	
 	# Predefined method to automatically convert 
 	# the contents of an object to a string
@@ -395,6 +398,27 @@ class TimeInterval(object):
 	def getFixedPerfSubjRecords(self):
 		# protection from changes
 		return tuple(self.__fixedPerfSubjRecords)
+		
+	def getSimpleDescr(self): # (issue #3) for jinja
+		outputList=[]
+		d = self.__sharedPerfSubjRecords # alias
+		for GID in d:
+			for intDescr in d[GID]:
+				tempDict={}
+				tempDict["subjName"]=intDescr.getSubjName()
+				tempDict["subjPerf"]=intDescr.getSubjPerf()
+				outputList.append(tempDict)
+				
+		for intDescr in self.__fixedPerfSubjRecords:
+				tempDict={}
+				tempDict["subjName"]=intDescr.getSubjName()
+				tempDict["subjPerf"]=intDescr.getSubjPerf()
+				outputList.append(tempDict)
+				
+		return {"startDate":self.getStartDate().isoformat(),
+				"endDate":self.getEndDate().isoformat(),
+				"descr": outputList}
+				
 
 class TrainingModesSharedFlag(enum.Enum):
 	SharedMode=0
@@ -488,8 +512,9 @@ class ImitPlanner(IEventSource, IEventListener):
 	def getNDays(self):
 		self.__checkMilestoneListLength()
 		l = len(self.__milestoneList)
-		return (self.__milestoneList[l-1].getDate()
-					- self.__milestoneList[0].getDate())
+		delta = self.__milestoneList[l-1].getDate() \
+					- self.__milestoneList[0].getDate()
+		return delta.days
 	
 	# The total number of tasks in all subjects
 	def getNExTotal(self):
@@ -548,6 +573,9 @@ class ImitPlanner(IEventSource, IEventListener):
 		startDate = self.__milestoneList[0].getDate()
 		endDate = (
 			self.__milestoneList[len(self.__milestoneList)-1].getDate())
+			
+		# sending verbose flag information (issue #3)
+		self.fireEvent(Event("fVerbose",verbose))
 		
 		# Current date & msCounter initialization	
 		self.__refreshCurDate()
@@ -684,6 +712,11 @@ class ImitPlanner(IEventSource, IEventListener):
 						TimeIntervalDescrRecord(subject, 
 							self.__trainingModes.getPerf(subject,i)))
 			self.fireEvent(Event("Interval Descr!",	interval))
+	
+	def sentData4PUMLGeneration(self):
+		self.fireEvent(event("SetMSList", self.__milestoneList))
+		self.fireEvent(event("SetNDays", self.getNDays()))
+		
 		
 class SimpleView(IEventListener):
 	
@@ -712,5 +745,183 @@ class SimpleView(IEventListener):
 			
 			print("Subjects with fixed training performance:")
 			self.__showSubjRecords(interval.getFixedPerfSubjRecords())
+			
 		elif event.getMessage()=="Promt":
 			print(event.getPayload())
+
+class DataBase(object): # issue #3
+	
+	def __init__(self):
+		self.refresh()
+		
+	def refresh(self):
+		self.__db={}
+		self.__idCounter=-1
+		
+	def regItem(self, item):
+		if item not in self.__db:
+			self.__idCounter+=1
+			self.__db[item]={}
+			self.__db[item]["ID"]=self.__idCounter
+			
+	def getID(self, item):
+		if item in self.__db:
+			return self.__db[item]["ID"]
+		else:
+			return -1
+	
+	def addData(self, item, key, date):
+		if key=="ID":
+			raise Exception("Error! Key cannot be 'ID'!")
+			
+		if item in self.__db:
+			if key not in self.__db[item]:
+				self.__db[item][key]=date
+				return 0
+			else:
+				return -1
+		else:
+			raise Exception("Error! No such onbjects in DB")
+	
+	def getData(self, item, key, date):
+		if item in self.__db:
+			if key in self.__db[item]:
+				return self.__db[item][key]
+			else:
+				raise Exception("Error! No such data!")
+		else:
+			raise Exception("Error! No such item!")
+	
+	def makeTuple(self):
+		l= []
+		for item in self.__db:
+			l.append(self.__db[item])
+		return tuple(l)
+
+class PlantUMLExporter(IEventListener): # issue #3 
+	PUML_COLORS=[
+		"turquoise",
+		"violet",
+		"wheat",
+		"orange",
+		"yellowgreen",
+		"darksalmon",
+		"goldenrod",
+		"lightgray",
+		"khaki",
+		"gray",
+		"olive",
+		"yellow"]
+		
+	def __init__(self):
+		self.__subjDB=DataBase()
+		self.__edSourceDB=DataBase()
+		self.refresh()
+		
+	def __getColor(self, ID):
+		return PlantUMLExporter.PUML_COLORS[ID % \
+				len(PlantUMLExporter.PUML_COLORS)]
+		
+	def refresh(self):
+		self.__msList=[]
+		self.__startDate=None
+		self.__endDate=None
+		
+		self.__subjDB.refresh()
+		self.__edSourceDB.refresh()
+		
+		#self.__edSourceDict={}
+		self.__intervalList=[]
+		
+	def onEvent(self, event):
+		if event.getMessage()=="KeyDate":
+			kd = event.getPayload()
+			if kd.getDateType()==DateType.MILESTONE:
+				if self.__startDate==None:
+					self.__startDate=kd.getDate()
+				self.__endDate=kd.getDate()
+				ms = kd.getPayload()
+				self.__msList.append(
+					{"date":ms.getDate().isoformat(), 
+					"descr":ms.getDescr()})
+			elif kd.getDateType()==DateType.ED_SOURCE:
+				subjAndSource = kd.getPayload()
+				subj = subjAndSource.getSubject()
+				edSource = subjAndSource.getEdSource()
+				
+				# Data collecting
+				self.__subjDB.regItem(subj) 
+				self.__edSourceDB.regItem(edSource)
+				
+				# determining type of edSource (string)
+				self.__edSourceDB.addData(edSource,"type",
+						edSource.getSourceName())
+				
+				# determining description of edSource (string)
+				self.__edSourceDB.addData(edSource,"name",
+						edSource.getTitle())
+				
+				# determining color
+				self.__edSourceDB.addData(edSource, "color",
+						self.__getColor( self.__subjDB.getID(subj) ) )
+				
+				# determining start and end dates
+				if (kd.getFEnd()):
+					self.__edSourceDB.addData(edSource, "endDate", 
+							kd.getDate().isoformat())
+				else:
+					self.__edSourceDB.addData(edSource, "startDate", 
+							kd.getDate().isoformat())
+			elif kd.getDateType()==DateType.SUBJECT:
+				subj = kd.getPayload()
+				self.__subjDB.regItem(subj)
+				self.__subjDB.addData(subj, "name", subj.getDescr())
+				self.__subjDB.addData(subj, "color", 
+				self.__getColor( self.__subjDB.getID(subj) ) ) 
+				
+		if event.getMessage()=="fVerbose":
+			if event.getPayload()==False:
+				raise Exception("Error! You must use 'verbose'"
+						+" mode in class ImitPlanner!")
+		if event.getMessage()=="Interval Descr!":
+			self.__intervalList.append(
+					event.getPayload().getSimpleDescr())
+			
+	def __getNDays(self):
+		return (self.__endDate-self.__startDate).days
+		
+	def inputValidation(self):
+		if len(self.__msList)==0:
+			raise Expression("Error! Milestone list is empty!")
+		if len(self.__intervalList)==0:
+			raise Expression("Error! Interval list is empty!")
+		# if self.__getNDays()>0:
+			# raise Expression("Error! nDays doesn't set!")
+			
+	def genPlantUMLCode(self, filename, title=None):
+		self.inputValidation()
+		
+		# Determining the start date
+		startDate = self.__msList[0]["date"]
+		
+		# Scale calculation
+		if self.__getNDays()>60:
+			scale="weekly"
+		else:
+			scale="daily"
+		
+		fileLoader = FileSystemLoader("./Templates")
+		env = Environment(loader=fileLoader)
+		pUMLTemplate = env.get_template("gantt.tmpl")
+		code = pUMLTemplate.render(title=title,
+				scale=scale,
+				startdate=startDate,
+				msList=self.__msList,
+				edSourceList=self.__edSourceDB.makeTuple(),
+				subjList = self.__subjDB.makeTuple(),
+				intervalList = self.__intervalList)
+		
+		# write generated code to file
+		puml_file = open(filename, "w")
+		n = puml_file.write(code)
+		puml_file.close()
