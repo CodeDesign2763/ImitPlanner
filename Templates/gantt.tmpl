@@ -16,16 +16,16 @@ project starts {{startdate}}
 [b{{edSource.ID}}] is colored in {{edSource.color}}
 {% endfor -%}
 note bottom
-Subjects: 
+= Subjects:
 {% for subj in subjList -%}
 {{subj.name}}: {{subj.color}}
 {% endfor -%}
 
 {%- block header1 %}
-Time intervals:
+= Time intervals:
 {% endblock -%}
 {% for interval in intervalList -%}
-{{interval.startDate}} -- {{interval.endDate}}:
+**{{interval.startDate}} -- {{interval.endDate}}:**
 {% for subject in interval.descr -%}
 {{subject.subjName}}: {{subject.subjPerf}} units/day
 {% endfor %}

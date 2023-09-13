@@ -13,61 +13,52 @@ project starts 2023-09-05
 
 [ Day before exam ] happens 2024-03-19
 
-[BOOK 0] as [b0] starts 2023-09-05
+[(BOOK) Book5] as [b0] starts 2023-09-05
 [b0] ends 2024-01-26
 [b0] is colored in turquoise
 
-[BOOK 1] as [b1] starts 2023-09-05
+[(BOOK) Book1] as [b1] starts 2023-09-05
 [b1] ends 2024-02-02
 [b1] is colored in violet
 
-[BOOK 2] as [b2] starts 2023-09-05
+[(BOOK) Book3] as [b2] starts 2023-09-05
 [b2] ends 2024-01-20
 [b2] is colored in wheat
 
-[BOOK 3] as [b3] starts 2024-01-20
+[(BOOK) Book4] as [b3] starts 2024-01-20
 [b3] ends 2024-02-20
 [b3] is colored in wheat
 
-[BOOK 4] as [b4] starts 2024-01-26
+[(BOOK) Book6] as [b4] starts 2024-01-26
 [b4] ends 2024-02-23
 [b4] is colored in turquoise
 
-[BOOK 5] as [b5] starts 2024-02-03
+[(BOOK) Book2] as [b5] starts 2024-02-03
 [b5] ends 2024-03-11
 [b5] is colored in violet
 
-[FTT 6] as [b6] starts 2024-03-12
+[(FTT) Reserve] as [b6] starts 2024-03-12
 [b6] ends 2024-03-18
 [b6] is colored in orange
 note bottom
-Subjects: 
+= Subjects:
 Subject3: turquoise
 Subject1: violet
 Subject2: wheat
 Misc: orange
 
-Educational sources:
-BOOK 0: Book5
-BOOK 1: Book1
-BOOK 2: Book3
-BOOK 3: Book4
-BOOK 4: Book6
-BOOK 5: Book2
-FTT 6: Reserve
+= Time intervals:
+**2023-09-05 -- 2024-01-25:**
+Subject1: 5 units/day
+Subject2: 5 units/day
+Subject3: 0.14285714285714285 units/day
+Misc: 1 units/day
 
-Time intervals:
-2023-09-05 -- 2024-01-25:
-Subject1: 5
-Subject2: 5
-Subject3: 0.14285714285714285
-Misc: 1
-
-2024-01-25 -- 2024-03-19:
-Subject1: 10
-Subject2: 10
-Subject3: 1
-Misc: 1
+**2024-01-25 -- 2024-03-19:**
+Subject1: 10 units/day
+Subject2: 10 units/day
+Subject3: 1 units/day
+Misc: 1 units/day
 
 end note
 @endgantt
