@@ -175,7 +175,7 @@ class FixedTimeTask(AbstractEdSource):
 			raise Exception("Error! This ed. source has already been"
 				+ " completed!")
 	def getSourceName(self):
-		return "Fixed Time Task"
+		return "FTT" #issue #11
 	def getDescr(self):
 		return "("+self.getSourceName()+") " + self.getTitle()
 
@@ -267,7 +267,7 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 	
 	def solveEx(self, nExSolved, verbose=False):
 
-		if self.__fLocked==False:
+		if self.__fLocked==False and nExSolved>0: #issue #8
 			self.__checkFirstUse(verbose) # issue #5
 			
 			rem=self.__edSourceList[self.__curEdSourceIndex].use(
