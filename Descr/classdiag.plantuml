@@ -25,8 +25,10 @@ interface IDescriptable {
 abstract class AbstractEdSource {
 	-unitName:string
 	-nExTotal:integer
-	__init__(unitName, nExTotal=1):
+	-title:string
+	__init__(title, unitName, nExTotal=1):
 	+getNexTotal():integer
+	+getTitle():string
 	{abstract} +solveEx(nExSolve): void
 	{abstract} +getSourceName():string
 	+getUnitName():string
@@ -36,10 +38,8 @@ abstract class AbstractProblemBook {
 	-author:string
 	-exCounter:float
 	-fComplete:boolean
-	-title:string
 	+__init__(title, nExTotal, author, unitName)
 	+getAuthor():string
-	+getTitle():string
 	{abstract} +getSourceName():string
 	+solveEx(nExSolved): void
 	+getExCounter():floar
@@ -58,7 +58,6 @@ class YTVideo {
 }
 
 class FixedTimeTask {
-	-title:string
 	-nDays:integer
 	-daysCounter:integer
 	-fComplete:boolean
@@ -127,10 +126,11 @@ class TimeInterval {
 	+__init__(ms1, ms2):
 	+getStartDate():datetime.date
 	+getEndDate():datetime.date
-	+addSharedPerfSubjRecord(subjRecord):void
+	+addSharedPerfSubjRecord(GID, subjRecord):void
 	+addFixedPerfSubjRecord(subjRecord):void
 	+getSharedPerfSubjRecord(subjRecord):void
 	+getFixedPerfSubjRecord(subjRecord):void
+	+getSimpleDescr():dict
 }
 
 
@@ -159,6 +159,55 @@ class SimpleView {
 	+onEvent(event):void
 }
 
+class DataBase {
+	-db:dict
+	-idCounter:integer
+	+refresh()
+	+__init__()
+	+regItem(item):void
+	+getID(item):integer
+	+addData(item, key, date):integer
+	+getData(item,key,date):string
+	+makeTuple():tuple
+}
+
+class PlantUMLCodeGenerator {
+	{static} PUML_COLORS: list
+	-subjDB:DataBase
+	-edSourceDB:DataBase
+	+refresh():void
+	-getColor(ID):string
+	-inputValidation(self):void
+	+genPlantUMLCode(filename, title):void
+}
+
+
+
+class SubjectAndEdSource {
+	-subj:Subject
+	-edSource: AbstractEdSource
+	+__init__(subj, edSource)
+	+getSubject():subject
+	+getEdSource():AbstractEdSource
+	+getDescr(): String
+}
+
+class TrainingModes {
+	-trainingModes: dict
+	+__init__(trainingModes)
+	+getGID(subj, intervalIndex):integer
+	+isShared(subj, intervalIndex):boolean
+	+getPerf(subj, intervalIndex):integer
+	+getModes(): dict
+	+getNModesPerSubject(subject):integer
+	+hasSubject(subject):boolean
+}
+
+enum TrainingModesSharedFlag {
+	SharedMode
+	FixedMode
+}
+
 IEventSource ..> Event : <<send>>
 
 IEventListener ..> Event : <<derive>>
@@ -184,6 +233,7 @@ TimeInterval o-- Milestone
 TimeInterval o-- TimeIntervalDescrRecord
 
 ImitPlanner ..> KeyDate : <<create>>
+ImitPlanner ..> TimeInterval : <<create>>
 
 KeyDate ..> DateType : <<derive>>
 
@@ -192,6 +242,23 @@ SimpleView ..|> IEventListener
 SimpleView ..> TimeInterval : <<use>>
 
 SimpleView ..> KeyDate : <<use>>
+
+PlantUMLCodeGenerator ..|> IEventListener
+PlantUMLCodeGenerator *-- DataBase
+
+ImitPlanner o-- TrainingModes
+TrainingModes ..> TrainingModesSharedFlag: <<use>>
+
+SubjectAndEdSource o-- Subject
+SubjectAndEdSource o-- AbstractEdSource
+KeyDate ..> SubjectAndEdSource: <<derive>>
+
+PlantUMLCodeGenerator ..> TimeInterval: <<use>>
+PlantUMLCodeGenerator ..> KeyDate: <<use>>
+
+
+
+
 
 
 @enduml

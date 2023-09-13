@@ -177,7 +177,7 @@ class FixedTimeTask(AbstractEdSource):
 	def getSourceName(self):
 		return "Fixed Time Task"
 	def getDescr(self):
-		return "("+self.getSourceName()+") " + self.__title
+		return "("+self.getSourceName()+") " + self.getTitle()
 
 class SubjectSolveExReturnCode(enum.Enum):
 	OK=0
@@ -798,7 +798,7 @@ class DataBase(object): # issue #3
 			l.append(self.__db[item])
 		return tuple(l)
 
-class PlantUMLExporter(IEventListener): # issue #3 
+class PlantUMLCodeGenerator(IEventListener): # issue #3 
 	PUML_COLORS=[
 		"turquoise",
 		"violet",
@@ -819,8 +819,8 @@ class PlantUMLExporter(IEventListener): # issue #3
 		self.refresh()
 		
 	def __getColor(self, ID):
-		return PlantUMLExporter.PUML_COLORS[ID % \
-				len(PlantUMLExporter.PUML_COLORS)]
+		return PlantUMLCodeGenerator.PUML_COLORS[ID % \
+				len(PlantUMLCodeGenerator.PUML_COLORS)]
 		
 	def refresh(self):
 		self.__msList=[]
@@ -890,7 +890,7 @@ class PlantUMLExporter(IEventListener): # issue #3
 	def __getNDays(self):
 		return (self.__endDate-self.__startDate).days
 		
-	def inputValidation(self):
+	def __inputValidation(self):
 		if len(self.__msList)==0:
 			raise Expression("Error! Milestone list is empty!")
 		if len(self.__intervalList)==0:
@@ -899,7 +899,7 @@ class PlantUMLExporter(IEventListener): # issue #3
 			# raise Expression("Error! nDays doesn't set!")
 			
 	def genPlantUMLCode(self, filename, title=None):
-		self.inputValidation()
+		self.__inputValidation()
 		
 		# Determining the start date
 		startDate = self.__msList[0]["date"]

@@ -33,7 +33,6 @@ book6 = Book("Book6", 28)
 subj1 = Subject("Subject1")
 subj1.addEdSource(book1)
 subj1.addEdSource(book2)
-subj1.addEdSource(FixedTimeTask("Reserve", 7))
 
 subj2 = Subject("Subject2")
 subj2.addEdSource(book3)
@@ -43,31 +42,40 @@ subj3 = Subject("Subject3")
 subj3.addEdSource(book5)
 subj3.addEdSource(book6)
 
+subj4 = Subject(name="Misc", startAfter=subj1)
+subj4.addEdSource(FixedTimeTask("Reserve", 7))
+
 view = SimpleView()
+pumlCodeGenerator = PlantUMLCodeGenerator()
 
 planner = ImitPlanner( 
 		{subj1:[[5,0],[10,0]], subj2:[[5,0],[10,0]], 
-		 subj3:[[1/7,1],[1,1]]})
+		 subj3:[[1/7,1],[1,1]], subj4:[[1,1],[1,1]]})
 
 planner.addMilestone(Milestone(datetime.date(2023,9,5),
 		"Start date"))
-		
 planner.addMilestone(Milestone(datetime.date(2024,1,25), 
 		"Start date of intensive training period"))
-
 planner.addMilestone(Milestone(datetime.date(2024,3,19),
 		"Day before exam"))
 
 planner.addEventListener(view)
+planner.addEventListener(pumlCodeGenerator)
 
 planner.addSubject(subj1)
 planner.addSubject(subj2)
 planner.addSubject(subj3)
+planner.addSubject(subj4)
 
-if planner.genKeyDates():
+if planner.genKeyDates(verbose=True):
 	print("The plan is possible")
 else:
 	print("The plan is impossible")
 
 print("\nDescription of time intervals:")
 planner.genTimeIntDescrRecords()
+
+pumlCodeGenerator.genPlantUMLCode("./Descr/PlantUMLExample.plantuml", 
+		"Example")
+
+
