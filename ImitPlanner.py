@@ -52,7 +52,8 @@ class IDescriptable(object): #informal interface
 		raise Exception("Interface method not implemented")
 
 class AbstractEdSource(IEventSource, IDescriptable):
-	def __init__(self, title, unitName=None, nExTotal=1):
+	def __init__(self, title, unitName=None, nExTotal=1,
+			isMandatory=True):
 		IEventSource.__init__(self)
 		self.__unitName=unitName
 		self.__nExTotal=nExTotal
@@ -61,12 +62,16 @@ class AbstractEdSource(IEventSource, IDescriptable):
 		self.__fUse=False
 		
 		self.__title=title
+		self.__isMandatory=isMandatory #issue #14
 		
 	def getNExTotal(self):
 		return self.__nExTotal
 	
 	def getTitle(self):
 		return self.__title
+	
+	def isMandatory(self): #issue 14
+		return self.__isMandatory
 	
 	# To send a message when the source is used for the first time
 	# issue #5
@@ -82,6 +87,12 @@ class AbstractEdSource(IEventSource, IDescriptable):
 	def getSourceName(self):
 		raise Exception("Interface method not implemented")
 		
+	def isComplete(self):
+		raise Exception("Interface method not implemented")
+	
+	def getProgressDescr(self): # string : nExSolved/nExTotal
+		raise Exception("Interface method not implemented")
+		
 	# Unit of measurement (tasks, videos, pages, etc)
 	def getUnitName(self):
 		return self.__unitName
@@ -90,9 +101,11 @@ class AbstractEdSource(IEventSource, IDescriptable):
 class AbstractProblemBook(AbstractEdSource): 
 	# Class constructor
 	# The first parameter must be "self" in all methods
-	def __init__(self, title, nExTotal, author=None, unitName=None):
+	def __init__(self, title, nExTotal, author=None, unitName=None, 
+			isMandatory=True):
 		# Base class constructor call
-		AbstractEdSource.__init__(self, title, unitName, nExTotal)
+		AbstractEdSource.__init__(self, title, unitName, nExTotal, 
+			isMandatory)
 		# private fields
 		self.__author = author
 		# solved tasks counter
@@ -107,6 +120,9 @@ class AbstractProblemBook(AbstractEdSource):
 	# abstract method
 	def getSourceName(self):
 		raise Exception("Interface method not implemented")
+		
+	def isComplete(self):
+		return self.__fComplete
 		
 	def solveEx(self, nExSolved):
 		if self.__fComplete != True:
@@ -141,29 +157,39 @@ class AbstractProblemBook(AbstractEdSource):
 		output+=self.getTitle()
 		return output
 		
+	def getProgressDescr(self):
+		return str(self.__exCounter) +"/" + str(self.getNExTotal())
+		
 
 class Book(AbstractProblemBook):
-	def __init__(self, title, nExTotal, author=None, unitName=None):	
+	def __init__(self, title, nExTotal, author=None, unitName=None,
+			isMandatory=True):	
 		AbstractProblemBook.__init__(self, title, nExTotal, 
-				author, unitName)
+				author, unitName, isMandatory)
 	def getSourceName(self):
 		return "BOOK"
 
 class YTVideo(AbstractProblemBook):
-	def __init__(self, title, nExTotal, author=None, unitName=None):	
+	def __init__(self, title, nExTotal, author=None, unitName=None,
+			isMandatory=True):	
 		AbstractProblemBook.__init__(self, title, nExTotal, 
-				author, unitName)
+				author, unitName, isMandatory)
 	def getSourceName(self):
 		return "YT VIDEO"
 		
 # this source is considered studied after a certain number of days, 
 # regardless of the value of productivity in the subject
 class FixedTimeTask(AbstractEdSource):
-	def __init__(self, title, nDays):
-		AbstractEdSource.__init__(self, title)
+	def __init__(self, title, nDays, isMandatory=True):
+		AbstractEdSource.__init__(self, title=title,
+				isMandatory=isMandatory)
 		self.__nDays=nDays
 		self.__daysCounter=0
 		self.__fComplete= False
+		
+	def isComplete(self):
+		return self.__fComplete
+		
 	def solveEx(self, p):
 		if self.__fComplete==False:
 			self.__daysCounter+=1
@@ -178,6 +204,9 @@ class FixedTimeTask(AbstractEdSource):
 		return "FTT" #issue #11
 	def getDescr(self):
 		return "("+self.getSourceName()+") " + self.getTitle()
+		
+	def getProgressDescr(self):
+		return str(self.__daysCounter) +"/" + str(self.__nDays)
 
 class SubjectSolveExReturnCode(enum.Enum):
 	OK=0
@@ -190,7 +219,8 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 		# index of the current ed. source (book) in the list
 		self.__curEdSourceIndex=0
 		# Learning completion flag
-		self.__fComplete=False
+		self.__fComplete=False #only mandatory subjects
+		self.__fCompleteAllSubjects=False
 		
 		self.__name=name
 		self.__prevSubj=startAfter
@@ -198,14 +228,28 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 		# Has the subject been used at least once? (issue #5)
 		self.__fUse=False
 		
+		
+		
 		# reopened issue #1
 		if startAfter!=None:
 			self.__fLocked=True
 		else:
 			self.__fLocked=False
+			
+		# issue #14
+		self.__mandSubjCounter=0
 	
 	def isLocked(self):
 		return self.__fLocked
+		
+	def getUnfinishedSourcesStat(self): #issue #14
+		outputList=[]
+		for edSource in self.__edSourceList:
+			if edSource.isComplete()==False:
+				outputList.append((
+						edSource, 
+						edSource.getProgressDescr()))
+		return tuple(outputList)
 
 	# issue #7 
 	def unlock(self):
@@ -221,10 +265,12 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 	def getPrevSubject(self):
 		return self.__prevSubj
 	
-	def addEdSource(self, book):
+	def addEdSource(self, edSource):
 		# Add an element to the end of the list
-		self.__edSourceList.append(book)
-		book.addEventListener(self)
+		self.__edSourceList.append(edSource)
+		edSource.addEventListener(self)
+		if edSource.isMandatory(): #issue #14
+			self.__mandSubjCounter+=1
 	
 	# Event handler	
 	def onEvent(self, event):
@@ -235,12 +281,25 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 				self.fireEvent(Event(event.getMessage(), 
 						SubjectAndEdSource(self,event.getPayload())))
 				
-				if self.__curEdSourceIndex<=len(self.__edSourceList):
+				if self.__curEdSourceIndex<len(self.__edSourceList):
 					self.__curEdSourceIndex+=1
+					
+					# checking completion of subject studying
+					if self.__curEdSourceIndex+1 >= \
+							self.__mandSubjCounter:
+						
+						fCompl=True
+						for edSource in self.__edSourceList:
+							if not edSource.isComplete():
+								if edSource.isMandatory()==True:
+									fCompl=False
+						if fCompl:
+							self.__fComplete=True
+							self.fireEvent(Event("Subject completed!", 
+									self))
+
 					if self.__curEdSourceIndex==len(self.__edSourceList):
-						self.__fComplete=True
-						self.fireEvent(Event("Subject completed!", 
-								self))
+						self.__fCompleteAllSubjects=True
 			else:
 				raise Exception("Error! This subject has already"
 						+ " been completed!")
@@ -273,7 +332,7 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 			rem=self.__edSourceList[self.__curEdSourceIndex].use(
 						nExSolved, verbose)
 			if rem>0: # issue #6
-				if self.isFinished()==False:
+				if self.isFullyComplete()==False: # BOGUS
 					self.__edSourceList[self.__curEdSourceIndex].use(
 						rem, verbose)
 						
@@ -289,6 +348,9 @@ class Subject(IDescriptable, IEventSource, IEventListener):
 	
 	def isFinished(self):
 		return self.__fComplete
+	
+	def isFullyComplete(self): #issue #14
+		return self.__fCompleteAllSubjects
 		
 	def getName(self):
 		return self.__name
@@ -663,6 +725,18 @@ class ImitPlanner(IEventSource, IEventListener):
 			
 			# Cycle step
 			self.__incCurDate()
+		
+		# unfinished tasks statistics (issue #14)
+		outputList=[]
+		for subj in self.__subjectList:
+			stat = subj.getUnfinishedSourcesStat()
+			if stat!=():
+				outputList.append((subj, stat))
+		self.fireEvent(Event("UnfinishedSourcesStat", 
+		tuple(outputList)))
+		
+		del outputList
+		
 				
 		# Verification of successful completion of training
 		fSuccess=True
@@ -748,6 +822,20 @@ class SimpleView(IEventListener):
 			
 		elif event.getMessage()=="Promt":
 			print(event.getPayload())
+		elif event.getMessage()=="UnfinishedSourcesStat":
+			if event.getPayload!=():
+				print("\nUnfinished sources:")
+				for record in event.getPayload():
+					subject, subjRecordTuple = record
+					print(subject.getDescr()+":")
+					for subjRecord in subjRecordTuple:
+						edSource, stat = subjRecord
+						print(edSource.getDescr(), " ", stat,
+								" MANDATORY=", edSource.isMandatory())
+			print("")
+					
+				
+			
 
 class DataBase(object): # issue #3
 	
@@ -783,7 +871,16 @@ class DataBase(object): # issue #3
 		else:
 			raise Exception("Error! No such onbjects in DB")
 	
-	def getData(self, item, key, date):
+	def isSet(self, item, key):
+		if item in self.__db:
+			if key in self.__db[item]:
+				return True
+			else:
+				return False
+		else:
+			raise Exception("Error! No such item!")
+	
+	def getData(self, item, key):
 		if item in self.__db:
 			if key in self.__db[item]:
 				return self.__db[item][key]
@@ -796,6 +893,12 @@ class DataBase(object): # issue #3
 		l= []
 		for item in self.__db:
 			l.append(self.__db[item])
+		return tuple(l)
+	
+	def getKeysTuple(self):
+		l=[]
+		for key in self.__db:
+			l.append(key)
 		return tuple(l)
 
 class PlantUMLCodeGenerator(IEventListener): # issue #3 
@@ -832,6 +935,7 @@ class PlantUMLCodeGenerator(IEventListener): # issue #3
 		
 		#self.__edSourceDict={}
 		self.__intervalList=[]
+		self.__unfinishedSourcesStat=[]
 		
 	def onEvent(self, event):
 		if event.getMessage()=="KeyDate":
@@ -839,7 +943,7 @@ class PlantUMLCodeGenerator(IEventListener): # issue #3
 			if kd.getDateType()==DateType.MILESTONE:
 				if self.__startDate==None:
 					self.__startDate=kd.getDate()
-				self.__endDate=kd.getDate()
+				self.__endDate=kd.getDate()-datetime.timedelta(days=1)
 				ms = kd.getPayload()
 				self.__msList.append(
 					{"date":ms.getDate().isoformat(), 
@@ -886,6 +990,19 @@ class PlantUMLCodeGenerator(IEventListener): # issue #3
 		if event.getMessage()=="Interval Descr!":
 			self.__intervalList.append(
 					event.getPayload().getSimpleDescr())
+		
+		if event.getMessage()=="UnfinishedSourcesStat":
+			stat = event.getPayload()
+			for record in stat:
+				subj, sourcesList = record
+				for sourceRecord in sourcesList:
+					source, descr = sourceRecord
+					self.__unfinishedSourcesStat.append(
+					{"sourceName": source.getDescr(), 
+							"descr":descr,
+							"mandatory":str(source.isMandatory())})
+							
+			
 			
 	def __getNDays(self):
 		return (self.__endDate-self.__startDate).days
@@ -902,7 +1019,17 @@ class PlantUMLCodeGenerator(IEventListener): # issue #3
 		self.__inputValidation()
 		
 		# Determining the start date
-		startDate = self.__msList[0]["date"]
+		startDate = self.__startDate.isoformat()
+		
+		# Determining the end date
+		endDate = self.__endDate.isoformat()
+		
+		# Complete unfinished sources with that end Date
+		for key in self.__edSourceDB.getKeysTuple():
+			if self.__edSourceDB.isSet(key, "endDate")==False:
+				self.__edSourceDB.addData(key,"endDate", endDate)
+			
+			
 		
 		# Scale calculation
 		if self.__getNDays()>60:
@@ -919,7 +1046,8 @@ class PlantUMLCodeGenerator(IEventListener): # issue #3
 				msList=self.__msList,
 				edSourceList=self.__edSourceDB.makeTuple(),
 				subjList = self.__subjDB.makeTuple(),
-				intervalList = self.__intervalList)
+				intervalList = self.__intervalList,
+				unfinishedSourcesList = self.__unfinishedSourcesStat)
 		
 		# write generated code to file
 		puml_file = open(filename, "w")

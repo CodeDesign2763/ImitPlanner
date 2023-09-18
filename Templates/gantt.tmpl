@@ -30,5 +30,11 @@ note bottom
 {{subject.subjName}}: {{subject.subjPerf}} units/day
 {% endfor %}
 {% endfor -%}
+{%- block header2 -%}
+= Unfinished Sources:
+{% endblock -%}
+{% for unfinishedSource in unfinishedSourcesList -%}
+{{unfinishedSource.sourceName}}: {{unfinishedSource.descr}} (Mandatory={{unfinishedSource.mandatory}})
+{% endfor -%}
 end note
 @endgantt
