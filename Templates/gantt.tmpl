@@ -28,13 +28,16 @@ note bottom
 **{{interval.startDate}} -- {{interval.endDate}}:**
 {% for subject in interval.descr -%}
 {{subject.subjName}}: {{subject.subjPerf}} units/day
-{% endfor %}
 {% endfor -%}
-{%- block header2 -%}
+{% endfor -%}
+
+{%- if fUnfinished -%}
+{%- block header2 %}
 = Unfinished Sources:
 {% endblock -%}
 {% for unfinishedSource in unfinishedSourcesList -%}
 {{unfinishedSource.sourceName}}: {{unfinishedSource.descr}} (Mandatory={{unfinishedSource.mandatory}})
 {% endfor -%}
+{%- endif -%}
 end note
 @endgantt

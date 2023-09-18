@@ -53,12 +53,10 @@ Subject1: 5 units/day
 Subject2: 5 units/day
 Subject3: 0.14285714285714285 units/day
 Misc: 1 units/day
-
 **2024-01-25 -- 2024-03-19:**
 Subject1: 10 units/day
 Subject2: 10 units/day
 Subject3: 1 units/day
 Misc: 1 units/day
-
 end note
 @endgantt

@@ -823,7 +823,7 @@ class SimpleView(IEventListener):
 		elif event.getMessage()=="Promt":
 			print(event.getPayload())
 		elif event.getMessage()=="UnfinishedSourcesStat":
-			if event.getPayload!=():
+			if event.getPayload()!=():
 				print("\nUnfinished sources:")
 				for record in event.getPayload():
 					subject, subjRecordTuple = record
@@ -936,6 +936,7 @@ class PlantUMLCodeGenerator(IEventListener): # issue #3
 		#self.__edSourceDict={}
 		self.__intervalList=[]
 		self.__unfinishedSourcesStat=[]
+		self.__fUnfinished=False
 		
 	def onEvent(self, event):
 		if event.getMessage()=="KeyDate":
@@ -992,6 +993,8 @@ class PlantUMLCodeGenerator(IEventListener): # issue #3
 					event.getPayload().getSimpleDescr())
 		
 		if event.getMessage()=="UnfinishedSourcesStat":
+			if event.getPayload()!=():
+				self.__fUnfinished=True
 			stat = event.getPayload()
 			for record in stat:
 				subj, sourcesList = record
@@ -1047,7 +1050,8 @@ class PlantUMLCodeGenerator(IEventListener): # issue #3
 				edSourceList=self.__edSourceDB.makeTuple(),
 				subjList = self.__subjDB.makeTuple(),
 				intervalList = self.__intervalList,
-				unfinishedSourcesList = self.__unfinishedSourcesStat)
+				unfinishedSourcesList = self.__unfinishedSourcesStat,
+				fUnfinished = self.__fUnfinished)
 		
 		# write generated code to file
 		puml_file = open(filename, "w")
