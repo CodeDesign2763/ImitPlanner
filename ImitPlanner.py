@@ -689,7 +689,7 @@ class ImitPlanner(IEventSource, IEventListener):
 							self.__trainingModes.getPerf(	
 								subject,msCounter-1))
 					
-					if subject.isFinished()==False:
+					if subject.isFullyComplete()==False:
 						self.__add2Dict(nSharedSubjects, 
 							self.__trainingModes.getGID(subject, 
 								msCounter-1), 1)
@@ -698,7 +698,7 @@ class ImitPlanner(IEventSource, IEventListener):
 					# When their study is completed, the released 
 					# resources are not redistributed 
 					# in favor of other subjects.
-					if subject.isFinished()==False:
+					if subject.isFullyComplete()==False:
 						subject.solveEx(
 						self.__trainingModes.getPerf(subject,
 								msCounter-1),
@@ -715,7 +715,7 @@ class ImitPlanner(IEventSource, IEventListener):
 				
 				for subject in self.__subjectList:
 					if self.__trainingModes.isShared(subject, \
-						msCounter-1) and subject.isFinished()==False \
+						msCounter-1) and subject.isFullyComplete()==False \
 						and subject.isLocked()==False:
 							GID = self.__trainingModes.getGID(subject, 
 									msCounter-1)
